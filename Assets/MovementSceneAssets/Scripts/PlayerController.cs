@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 
 public class PlayerController : MonoBehaviour
 {
-    private enum State { idle, running, dashing, jumping, hurt, attacking }
+    private enum State { idle, running, dashing, jumping, hurt, attacking, dead }
 	[SerializeField] private State state = State.idle;
 
 	public PowerBar powerBar; // Creates a powerbar object
@@ -77,12 +78,23 @@ public class PlayerController : MonoBehaviour
 		OpenOptionsMenu();
 		CheckGrounded();
 
-		if(isGrounded)
+		if (rb.velocity.y != 0)
 		{
-			canDoubleJump = true; // Allows double jump when the player is on the ground
+			anim.SetFloat("airSpeed", rb.velocity.y / Mathf.Abs(rb.velocity.y));
+		}
+		else
+		{
+			anim.SetFloat("airSpeed", 0);
 		}
 
-		if(state != State.hurt)
+		anim.SetBool("isGrounded", isGrounded);
+
+		if (isGrounded)
+		{
+			canDoubleJump = true; // Allows double jump when the player touches the ground
+		}
+
+		if(state != State.hurt && state != State.attacking && state != State.dead)
 		{
 			Movement(); // Check for movement related input when not in hurt state
 		}
@@ -97,9 +109,8 @@ public class PlayerController : MonoBehaviour
 			// Blocks double jump and dash abilities
 			canDoubleJump = false;
 			canDash = false;
+			state = State.dead;
 		}
-
-		AnimationStateMachine(); // Changes animation according to player state [not finished > can only be fully completed once animations have been added]
 
 		powerBar.SetPower(currentHealth); // Applies all changes to energy meter
 
@@ -112,6 +123,11 @@ public class PlayerController : MonoBehaviour
 				nextAttackTime = Time.time + (1f / attackRate);
 			}
 		}
+
+		anim.SetInteger("state", (int)state);
+		AnimationStateMachine(); // Changes animation according to player state
+
+		Death();
 	}
 
 
@@ -133,19 +149,11 @@ public class PlayerController : MonoBehaviour
 			state = State.hurt;
 			currentHealth -= 10;
 
-            if(other.gameObject.transform.position.x > transform.position.x)
-			{
-				rb.velocity = new Vector2(-hurtForce, rb.velocity.y);
-			}
-			else
-			{
-				rb.velocity = new Vector2(hurtForce, rb.velocity.y);
-			}
+            if(other.gameObject.transform.position.x > transform.position.x) rb.velocity = new Vector2(-hurtForce, rb.velocity.y);
+			else rb.velocity = new Vector2(hurtForce, rb.velocity.y);
 
-			if(other.gameObject.transform.position.y < transform.position.y)
-			{
-				rb.velocity = new Vector2(rb.velocity.x, hurtForce);
-			}
+			if(other.gameObject.transform.position.y < transform.position.y) rb.velocity = new Vector2(rb.velocity.x, hurtForce);
+            else rb.velocity = new Vector2(rb.velocity.x, -hurtForce);
 		}
 	}
 
@@ -207,7 +215,7 @@ public class PlayerController : MonoBehaviour
 			isDashing = true;
 			gameObject.layer = 12;
 
-			yield return new WaitForSeconds(dashTime); // Initiates a 0.1 seconds timer
+			yield return new WaitForSeconds(dashTime); // Initiates a timer
 
 			gameObject.layer = 11;
 			currentSpeed = moveSpeed; // Changes player speed to normal speed
@@ -226,7 +234,7 @@ public class PlayerController : MonoBehaviour
 
 	private IEnumerator DashCooldown() // Dash cooldown timer
 	{
-		yield return new WaitForSeconds(dashCooldown); // Initiates a 0.1 seconds timer
+		yield return new WaitForSeconds(dashCooldown); // Initiates a timer
 		canDash = true; // Enables dash capability
 	}
 
@@ -253,46 +261,67 @@ public class PlayerController : MonoBehaviour
 	}
 
 
-    private void AnimationStateMachine()
+	private void Death()
+    {
+		if (currentHealth <= 0)
+		{
+			StartCoroutine(DeathTimer());
+		}
+    }
+
+
+	private IEnumerator DeathTimer()
 	{
-        if(Mathf.Abs(rb.velocity.y) > 0.1f && state != State.hurt)
+		yield return new WaitForSeconds(3); // Initiates a timer
+		SceneManager.LoadScene(2); // Loads game over scene
+		this.enabled = false;
+	}
+
+
+	private void AnimationStateMachine()
+	{
+		if (Mathf.Abs(rb.velocity.y) > 0.1f && state != State.hurt)
 		{
 			state = State.jumping;
 
-            if(isGrounded)
+			if (isGrounded)
 			{
 				state = State.idle;
 			}
 		}
-        else if(state == State.hurt)
+		else if (state == State.hurt)
 		{
-            if(Mathf.Abs(rb.velocity.x) < 0.1f)
+			if (Mathf.Abs(rb.velocity.x) < 0.01f)
 			{
 				state = State.idle;
 			}
 		}
-        else if(state == State.dashing)
+		else if (isDashing)
 		{
-            if(currentSpeed == moveSpeed)
+			state = State.dashing;
+		}
+		else if (state == State.dashing)
+		{
+			if (currentSpeed == moveSpeed)
 			{
 				state = State.idle;
 			}
 		}
-        else if(Mathf.Abs(rb.velocity.x) > 1f && !isDashing)
+		else if (Mathf.Abs(rb.velocity.x) > 1f && !isDashing)
 		{
 			state = State.running;
 		}
-		else if(Mathf.Abs(rb.velocity.x) > 1f && isDashing)
-        {
-			state = State.dashing;
-        }
-		else if(state == State.attacking)
-        {
-			if(Time.time >= nextAttackTime)
-            {
+		else if (state == State.attacking)
+		{
+			if (Time.time >= nextAttackTime)
+			{
 				state = State.idle;
-            }
-        }
+			}
+		}
+		else if(state == State.dead)
+        {
+			state = State.dead;
+		}
 		else
 		{
 			state = State.idle;
