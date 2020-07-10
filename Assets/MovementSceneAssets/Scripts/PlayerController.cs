@@ -41,6 +41,7 @@ public class PlayerController : MonoBehaviour
 
 	[SerializeField] private Transform groundCheck; // Gets the ground check object transform
 	[SerializeField] private Transform attackCheck; // Gets the attack check object transform
+	[SerializeField] private Transform spawnPoint;
 
 
 	[SerializeField] private float groundCheckRadius = 0.47f; // Set the radius for the ground check
@@ -49,11 +50,11 @@ public class PlayerController : MonoBehaviour
 
 	[SerializeField] private GameObject PauseMenuScreen;
 
-
+	[SerializeField] private enemy teste;
 	private Rigidbody2D rb;
 	private Collider2D coll;
 	private Animator anim;
-
+	public int damage;
 
 	private void Start()
 	{
@@ -117,10 +118,12 @@ public class PlayerController : MonoBehaviour
 		if (Input.GetKeyDown(KeyCode.Mouse1)) // Check for attack input
 		{
 			if(Time.time >= nextAttackTime) // Compare current time with next possible attack time
-			{
+			{	
+				
 				state = State.attacking; //Change state to attacking
 				CheckAttack(); //
 				nextAttackTime = Time.time + (1f / attackRate);
+							
 			}
 		}
 
@@ -155,6 +158,10 @@ public class PlayerController : MonoBehaviour
 			if(other.gameObject.transform.position.y < transform.position.y) rb.velocity = new Vector2(rb.velocity.x, hurtForce);
             else rb.velocity = new Vector2(rb.velocity.x, -hurtForce);
 		}
+		else if(other.gameObject.tag == "MapEdge")
+        {
+			transform.position = new Vector2(spawnPoint.position.x, spawnPoint.position.y);
+        }
 	}
 
 
@@ -243,7 +250,7 @@ public class PlayerController : MonoBehaviour
 	{
 		if(Physics2D.OverlapCircle(attackCheck.position, attackCheckRadius, enemyLayer))
 		{
-			AttackFunc();
+			teste.TakeDamage(damage);
 		}
 	}
 
